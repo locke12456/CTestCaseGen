@@ -1,11 +1,20 @@
 from modules.base.C import C, CppArgs , function, param
 from copy import copy, deepcopy
+import os
 
 class cmockery(object):
     _file = None
     _mock = []
     _test_case = []
     """description of class"""
+    
+    def _get_abspath(self, desc, extension, to_path):
+        path_ = os.path.abspath(to_path)
+        if os.path.exists(path_) is False:
+            os.makedirs(path_)
+        path_ += "\\" + desc + extension
+        return path_
+
     def _build_mock_obj(self):
         for key,value in self._file.functions.map.iteritems():
             for func in value.itervalues():
@@ -18,19 +27,42 @@ class cmockery(object):
     def _initialize(self, input):
         if type(input) is CppArgs:
             self._file = C(input)
-            self._build_mock_obj()
-            for func in self._file.functions.map[input.src].itervalues():
-                test = TestCase(func,"Test")
-                test.add("Success")
-                test.save()
+            self.input = input
 
 
     def __init__(self, input = None , *args, **kwargs):
         super(cmockery, self).__init__(*args, **kwargs)
         self._initialize(input)
-    def save(self,to_path=""):
+    def _ouput_mock_header(self, filename, to_path):
+        path_ = self._get_abspath("", filename + ".h", to_path)
+        file = open(str(path_) , 'w')
+        define = str(filename).upper()
+        file.write( "#ifndef " + define +"\n")
+        file.write( "#define " + define +"\n")
+        for func in self._mock:
+            file.write(func.Function)
+            file.write(";\n")
+        
+        for func in self._mock:
+            file.write(func.Delegate)
+            file.write(";\n")
+        file.write( "#endif ")
+        file.flush()
+        file.close()
+
+    def save(self, filename , cases = None, to_path = "." ):
+        self._build_mock_obj()
         for mock in self._mock:
             mock.save(to_path)
+        self._ouput_mock_header(filename, to_path)
+
+        if cases is None:
+            return
+        test = TestCaseManagement()
+        for func in self._file.functions.map[self.input.src].itervalues():
+            for case in cases:
+                test.add(func,case , "T_")
+        test.save(to_path,filename)
 
 class Unit(object):
     _func = None
@@ -42,7 +74,22 @@ class Unit(object):
     @property
     def Function(self):
         return self._func_name
+    
+    @property
+    def File(self):
+        return self._func.File
 
+    @property
+    def Name(self):
+        return self._func.Name
+
+    def _get_abspath(self, desc, extension, to_path):
+        path_ = os.path.abspath(to_path)
+        if os.path.exists(path_) is False:
+            os.makedirs(path_)
+        path_ += "\\" + desc + extension
+        return path_
+    
     def _init_param(self, param , name = None ):
         type = ""
         for tp in param.Type:
@@ -61,6 +108,7 @@ class Unit(object):
         name = ""
         type =  (self._init_param(func) if type is "" else type)
         args = self._init_args(func)
+        #func.Name = extra + func.Name
         name = type + "\n" + extra + func.Name + "(" + args + ")\n"
         return name
     def __init__(self,func ,*args, **kwargs):
@@ -79,7 +127,8 @@ class Unit(object):
         func = self._func
         include = self._init_include(func)
         include += "#include \\* path to" + '"' + func.File +'" *\\\n'
-        file = open(str(to_path + extra + func.Name + extension) , 'w')
+        path_ = self._get_abspath(extra, func.Name + extension, to_path)
+        file = open(str(path_) , 'w')
         file.write(include)
         file.write(self.Function)
         file.write(self.Body)
@@ -88,6 +137,10 @@ class Unit(object):
         pass
 
 class MockObject(Unit):
+    delegate = ""
+    @property
+    def Delegate(self):
+        return self.delegate
     def _build_delegate_function(self,origin_func):
         func = deepcopy(origin_func)
         for arg in func.Args:
@@ -99,7 +152,7 @@ class MockObject(Unit):
         del func.Type[:]
 
         func.Type = ["void"]
-        delegate =self._build_function_name(func,"Delegate")
+        self.delegate = delegate = self._build_function_name(func,"Delegate")
         body = delegate
         body += "{\n"
         for arg in origin_func.Args:
@@ -124,7 +177,7 @@ class MockObject(Unit):
 
 class TestCase(Unit):
     def _init_input(self, func):
-        args = "    "
+        args = ""
         for arg in func.Args:
             args += "   " + self._init_param( arg , arg.Name ) 
             #if func.Args.index(arg) < len(func.Args)-1:
@@ -140,24 +193,68 @@ class TestCase(Unit):
             body += " " + arg.Name + " "
             if func.Args.index(arg) < len(func.Args)-1:
                 body += ","
-        body += ");\n}\n"
+        body += ");\n"
+        body += "   assert_int_equal(result , 0);/* Not implemented */ \n"
+        body += "}\n"
         return body
     def __init__(self, func , extra , *args, **kwargs):
-        super(TestCase, self).__init__(func, *args, **kwargs)
+        self._func = deepcopy(func)
+        super(TestCase, self).__init__(self._func, *args, **kwargs)
         self.extra = extra
-    def add(self, extra ):
+    def _gen_funcname(self, extra):
         func = deepcopy(self._func)
         del func.Type[:]
         func.Args = []
         func.Type = ["void"]
-        func.Name = func.Name + extra
+        func.Name = self.extra + func.Name + extra
         par = param()
         par.Name = "state"
         par.Type = ["void **"]
         func.Args.append(par)
-        self._func_body += self._build_function_name(func , self.extra )
+        return func
+
+    def generate(self, extra ):
+        func = self._gen_funcname(extra)
+        self._func_body += self._build_function_name(func , "" )
         self._func_body += self._build_function_body( self._func )
+        self._func.Name = func.Name
+
     def save(self, to_path = '', extra = 'Test_', extension = '.c'):
         return super(TestCase, self).save(to_path, extra, extension)
+class TestCaseManagement(Unit):
+    _functions = None
+    def __init__(self, *args, **kwargs):
+        super(TestCaseManagement, self).__init__(None, *args, **kwargs)
+        self._functions = []
+    def add(self, func , extra , desc = "Test_"):
+        test = TestCase(func , desc)
+        test.generate(extra)
+        self._functions.append(test)
+        pass
+    
+    
+
+    def save(self, to_path = '', desc = 'Test', extension = '.c'):
+        files = {}
+        func = self._func
+        include = self._init_include(func)
+        path_ = self._get_abspath(desc, extension, to_path)
+        file = open(str(path_) , 'w')
+        file.write(include)
+        for test in self._functions:
+            if files.has_key(test.File) is not True:
+                file.write( str("\\* #include  path to" + '"' + test.File +'" *\\\n') )
+                files [test.File] = True
+            file.write(test.Function)
+            file.write(test.Body)
+
+        file.write("const UnitTest tests[] = {\n")
+        for test in self._functions:
+            file.write("    unit_test("+test.Name+")")
+            str_ = "," if  self._functions.index(test) < len(self._functions) - 1 else "\n};"
+            file.write(str_ + "\n")
+
+        file.flush()
+        file.close()
 
 

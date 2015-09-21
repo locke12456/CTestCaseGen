@@ -85,10 +85,15 @@ class function(param):
         self._initialize(node)
         return self._build_params(node)
     
+    def _get_type(self,obj):
+        if type(obj) is not IdentifierType:
+            return self._get_type(obj.type)
+        return obj
     def _recurive_search(self,obj , arg ):
         try:
             if(type(obj) is PtrDecl):
-                obj.type.type.names.append("*")
+                obj_ = self._get_type(obj)
+                obj_.names.append("*")
                 return self._recurive_search(obj.type , arg )
             if type(obj) is TypeDecl and len(obj.quals) > 0:
                 arr = [x for x in obj.quals]
