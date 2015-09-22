@@ -89,18 +89,24 @@ class function(param):
         if type(obj) is not IdentifierType:
             return self._get_type(obj.type)
         return obj
+    def _is_ptr(self, arg, obj):
+        obj_ = self._get_type(obj)
+        obj_.names.append("*")
+        return self._recurive_search(obj.type , arg )
+
+    def _combine_types(self, arg, obj):
+        arr = [x for x in obj.quals]
+        for val in obj.type.names:
+            arr.append(val)
+        obj.type.names = arr
+        return self._recurive_search(obj.type , arg )
+
     def _recurive_search(self,obj , arg ):
         try:
             if(type(obj) is PtrDecl):
-                obj_ = self._get_type(obj)
-                obj_.names.append("*")
-                return self._recurive_search(obj.type , arg )
+                return self._is_ptr(arg, obj)
             if type(obj) is TypeDecl and len(obj.quals) > 0:
-                arr = [x for x in obj.quals]
-                for val in obj.type.names:
-                    arr.append(val)
-                obj.type.names = arr
-                return self._recurive_search(obj.type , arg )
+                return self._combine_types(arg, obj)
             if type(obj) is not IdentifierType:
                 return self._recurive_search(obj.type , arg )
             arg.Type = obj.names

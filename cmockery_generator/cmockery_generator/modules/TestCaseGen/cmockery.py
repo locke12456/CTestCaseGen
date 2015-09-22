@@ -39,9 +39,9 @@ class cmockery(object):
         define = str(filename).upper()
         file.write( "#ifndef " + define +"\n")
         file.write( "#define " + define +"\n")
-        for func in self._mock:
-            file.write(func.Function)
-            file.write(";\n")
+        #for func in self._mock:
+        #    file.write(func.Function)
+        #    file.write(";\n")
         
         for func in self._mock:
             file.write(func.Delegate)
@@ -51,6 +51,8 @@ class cmockery(object):
         file.close()
 
     def save(self, filename , cases = None, to_path = "." ):
+        if filename.endswith(".c"):
+            filename.replace(".c","")
         self._build_mock_obj()
         for mock in self._mock:
             mock.save(to_path)
