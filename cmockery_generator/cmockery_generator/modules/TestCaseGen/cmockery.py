@@ -21,8 +21,9 @@ class cmockery(object):
                 if func.Mock is True:
                     print func.Name +" ("+func.File+")"
                     obj = MockObject(func)
+                    if obj.Delegate is not None:
                     #obj.save("","mock_",".c")
-                    self._mock.append(obj)
+                        self._mock.append(obj)
 
     def _initialize(self, input):
         if type(input) is CppArgs:
@@ -44,15 +45,16 @@ class cmockery(object):
         #    file.write(";\n")
         
         for func in self._mock:
-            file.write(func.Delegate)
-            file.write(";\n")
+            if func.Delegate is not None:
+                file.write(func.Delegate)
+                file.write(";\n")
         file.write( "#endif ")
         file.flush()
         file.close()
 
     def save(self, filename , cases = None, to_path = "." ):
-        if filename.endswith(".c"):
-            filename.replace(".c","")
+        if filename.endswith(".c") is True:
+            filename = filename.replace(".c","")
         self._build_mock_obj()
         for mock in self._mock:
             mock.save(to_path)
@@ -79,11 +81,11 @@ class Unit(object):
     
     @property
     def File(self):
-        return self._func.File
+        return self._func.File if type(self._func) is not None else ""
 
     @property
     def Name(self):
-        return self._func.Name
+        return self._func.Name if type(self._func) is not None else ""
 
     def _get_abspath(self, desc, extension, to_path):
         path_ = os.path.abspath(to_path)
@@ -145,20 +147,26 @@ class MockObject(Unit):
         return self.delegate
     def _build_delegate_function(self,origin_func):
         func = deepcopy(origin_func)
-        for arg in func.Args:
-            arg.Name = "_"+arg.Name
+        Args = [arg for arg in func.Args if arg.Name is not None ]
+        if len (Args) > 0:   
+            for arg in Args:
+                arg.Name = "_"+arg.Name
+
         par = param()
         par.Name = "return_val"
         par.Type = [self._init_param(func)]
-        func.Args.append(par)
+        Args.append(par)
+           
+        del func.Args[:]
         del func.Type[:]
-
+        func.Args = Args
         func.Type = ["void"]
         self.delegate = delegate = self._build_function_name(func,"Delegate")
         body = delegate
         body += "{\n"
         for arg in origin_func.Args:
-            body += "   expect_value("+ func.Name+ " , "+ arg.Name + " , _" + arg.Name + ");\n"
+            if arg.Name is not None:
+                body += "   expect_value("+ func.Name+ " , "+ arg.Name + " , _" + arg.Name + ");\n"
         body += "   will_return("+ func.Name+ " , "+ par.Name + ");\n"
         body += "   \n}\n"
         return body
@@ -166,7 +174,8 @@ class MockObject(Unit):
     def _build_function_body(self, func):
         body = "{\n"
         for arg in func.Args:
-            body += "   check_expected(" + arg.Name + ");\n"
+            if arg.Name is not None:
+                body += "   check_expected(" + arg.Name + ");\n"
         body += "   return ("+ self._init_param(func) +")mock();\n}\n"
         self._func_body = body
     def __init__(self, func, *args, **kwargs):
@@ -174,6 +183,8 @@ class MockObject(Unit):
         self._func_name = self._build_function_name(func)
         self._build_function_body(func)
         self._func_body += self._build_delegate_function(func)
+        if self._func_body is None:
+            self.delegate = None
     def save(self, to_path = '', extra = 'mock_', extension = '.c'):
         return super(MockObject, self).save(to_path, extra, extension)
 

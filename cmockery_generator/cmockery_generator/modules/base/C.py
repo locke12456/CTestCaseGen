@@ -1,7 +1,13 @@
-from pycparser import c_parser as c, c_generator, c_ast , parse_file
-from pycparser.c_ast import TypeDecl, PtrDecl , IdentifierType, FuncDecl
+
+try:
+    from pycparser import c_parser as c, c_generator, c_ast , parse_file
+    from pycparser.c_ast import TypeDecl, PtrDecl , IdentifierType, FuncDecl
+except ImportError:
+    fatal("could not import pycparser (Python C Parser >= 2.07)")
+
 import os
 from ntpath import basename
+
 class param(object):
     types = []
     @property

@@ -8,11 +8,11 @@ class Test_test_cmockery_mock(unittest.TestCase):
         dir = os.getcwd() + "\\test\\ouput\\"
         os.chdir("../../../../../libsema/sema_api")
         cpp = CppArgs()
-        cpp.src = "SemaApi_GetBIOS.c"
+        cpp.src = "SemaApi_AdjustSize.c"
         cpp.includes = ["-I..","-I../sema_private","-I../test/tools/utils/fake_libc_include"]
         cpp.search_dir = ["..",".","../sema_private","../linux","../win32"]
         testa = cmockery(cpp)
-        testa.save("T_SemaApi_GetBIOS",["S","F"],dir) 
+        testa.save("T_"+cpp.src,["S","F"],dir) 
         self.fail("Not implemented")
 
 if __name__ == '__main__':
