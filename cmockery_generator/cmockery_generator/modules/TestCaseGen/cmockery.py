@@ -38,16 +38,20 @@ class cmockery(object):
         path_ = self._get_abspath("", filename + ".h", to_path)
         file = open(str(path_) , 'w')
         define = str(filename).upper()
-        file.write( "#ifndef " + define +"\n")
-        file.write( "#define " + define +"\n")
+        file.write( "#ifndef {0}\n".format( define ) )
+        file.write( "#define {0}\n".format( define ) )
         #for func in self._mock:
         #    file.write(func.Function)
         #    file.write(";\n")
         
+
         for func in self._mock:
             if func.Delegate is not None:
+                file.write( "#ifndef __{0}__\n".format( func.Name ) )
+                file.write( "#define __{0}__\n".format( func.Name ) )
                 file.write(func.Delegate)
                 file.write(";\n")
+                file.write( "#endif //!__{0}__\n".format( func.Name ) )
         file.write( "#endif ")
         file.flush()
         file.close()
@@ -130,7 +134,7 @@ class Unit(object):
     def save(self , to_path = "" , extra = "" , extension = ""):
         func = self._func
         include = self._init_include(func)
-        include += "#include \\* path to" + '"' + func.File +'" *\\\n'
+        include += "#include /* path to" + '"' + func.File +'" */\n'
         path_ = self._get_abspath(extra, func.Name + extension, to_path)
         file = open(str(path_) , 'w')
         file.write(include)
@@ -166,8 +170,8 @@ class MockObject(Unit):
         body += "{\n"
         for arg in origin_func.Args:
             if arg.Name is not None:
-                body += "   expect_value("+ func.Name+ " , "+ arg.Name + " , _" + arg.Name + ");\n"
-        body += "   will_return("+ func.Name+ " , "+ par.Name + ");\n"
+                body += "   expect_value({0} , {1} , _{2});\n".format(func.Name,arg.Name, arg.Name)
+        body += "   will_return({0} , {1});\n".format(func.Name,par.Name)
         body += "   \n}\n"
         return body
 
@@ -175,8 +179,9 @@ class MockObject(Unit):
         body = "{\n"
         for arg in func.Args:
             if arg.Name is not None:
-                body += "   check_expected(" + arg.Name + ");\n"
-        body += "   return ("+ self._init_param(func) +")mock();\n}\n"
+                body += "   check_expected({0});\n".format(arg.Name)
+        return_type = "({0})".format(self._init_param(func))
+        body += "   return "+return_type+"mock();\n}\n"
         self._func_body = body
     def __init__(self, func, *args, **kwargs):
         super(MockObject, self).__init__(func, *args, **kwargs)
@@ -192,7 +197,7 @@ class TestCase(Unit):
     def _init_input(self, func):
         args = ""
         for arg in func.Args:
-            args += "   " + self._init_param( arg , arg.Name ) 
+            args += "   {0}".format( self._init_param( arg , arg.Name ) ) 
             #if func.Args.index(arg) < len(func.Args)-1:
             args += ";\n"
         return args
@@ -200,10 +205,10 @@ class TestCase(Unit):
         body = "{\n"
         
         body += self._init_input(func)
-        body += "   " + self._init_param( self._func , "result" ) + ";\n" 
-        body += "   result = " + self._func.Name + "(" 
+        body += "   {0};\n" .format( self._init_param( self._func , "result" ))
+        body += "   result = {0}(".format(self._func.Name)
         for arg in func.Args:
-            body += " " + arg.Name + " "
+            body += " {0} ".format( arg.Name )
             if func.Args.index(arg) < len(func.Args)-1:
                 body += ","
         body += ");\n"
